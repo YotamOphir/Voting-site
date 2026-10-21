@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת דירוג והצבעות</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SortableJS for Smooth Drag and Drop -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <!-- Google Fonts for Heboo & Rubik -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heboo:wght@300;400;500;600;700;800&family=Rubik:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Apply Heboo font globally */
+        * {
+            font-family: 'Heboo', 'Rubik', system-ui, -apple-system, sans-serif !important;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+            min-height: 100vh;
+        }
+
+        .sortable-ghost {
+            opacity: 0.4;
+            background-color: #e2e8f0 !important;
+            border: 2px dashed #94a3b8 !important;
+        }
+
+        .sortable-drag {
+            cursor: grabbing;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+    </style>
+</head>
+<body class="text-slate-800 flex flex-col min-h-screen">
+
+    <!-- Navigation Bar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="bg-indigo-600 text-white p-2 rounded-xl">
+                    <i data-lucide="vote" class="w-5 h-5"></i>
+                </div>
+                <h1 class="font-bold text-lg text-slate-800 tracking-wide">מערכת דירוג</h1>
+            </div>
+
+            <!-- Tabs -->
+            <nav class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs sm:text-sm">
+                <button id="tab-vote" onclick="switchTab('vote')" class="px-4 py-1.5 rounded-lg transition-all duration-200 bg-white text-indigo-600 shadow-sm font-bold">
+                    הצבעה
+                </button>
+                <button id="tab-results" onclick="switchTab('results')" class="px-4 py-1.5 rounded-lg transition-all duration-200 text-slate-600 hover:text-slate-900 font-bold hidden">
+                    תוצאות
+                </button>
+                <button id="tab-admin" onclick="switchTab('admin')" class="px-4 py-1.5 rounded-lg transition-all duration-200 text-slate-600 hover:text-slate-900 font-bold hidden">
+                    ניהול
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-4xl w-full mx-auto p-4 sm:p-6">
+        
+        <!-- Status Toast Message -->
+        <div id="toast" class="hidden fixed bottom-5 left-5 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 transition-all duration-300 transform translate-y-10 opacity-0">
+            <i id="toast-icon" data-lucide="check-circle-2" class="w-5 h-5 text-green-400"></i>
+            <span id="toast-message" class="text-sm font-bold">הפעולה בוצעה בהצלחה!</span>
+        </div>
+
+        <!-- ================= VOTING VIEW ================= -->
+        <section id="view-vote" class="space-y-6">
+            <div class="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 text-center relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-2 h-full bg-indigo-600"></div>
+                <span class="inline-block px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-xs font-bold mb-3"> אורות בנים - חודש ארגון תשפ"ז </span>
+                <h2 id="poll-title-display" class="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">באיזו ועדה תרצה להיות?</h2>
+                <p id="poll-desc-display" class="text-slate-500 text-sm max-w-md mx-auto">גררו את האפשרויות או השתמשו בחצים כדי לסדר אותן לפי הסדר המועדף עליכם (מקום 1 בראש הרשימה).</p>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div class="mb-6 pb-5 border-b border-slate-100">
+                    <label for="voter-name" class="block text-sm font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                        <i data-lucide="user" class="w-4 h-4 text-indigo-500"></i> שם מלא: <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="voter-name" placeholder="הכנס את שמך המלא..." required class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all text-sm font-bold">
+                    <p id="name-error-msg" class="hidden text-xs text-red-500 mt-1 flex items-center gap-1">
+                        <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> חובה להזין שם לפני שליחת הדירוג
+                    </p>
+                </div>
+
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                        <i data-lucide="arrow-up-down" class="w-4 h-4 text-indigo-500"></i> דרגו את האפשרויות:
+                    </h3>
+                    <span class="text-xs text-slate-400">1 = הציון הגבוה ביותר</span>
+                </div>
+
+                <!-- Draggable Items Container -->
+                <div id="ranking-list" class="space-y-3 mb-6"></div>
+
+                <div class="flex flex-col gap-3">
+                    <button id="submit-vote-btn" onclick="submitVote()" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold rounded-xl shadow-lg shadow-indigo-100 transition-all duration-200 flex items-center justify-center gap-2 text-base">
+                        <i data-lucide="send" class="w-5 h-5"></i> שליחת הדירוג שלי
+                    </button>
+                    <p class="text-xs text-center text-slate-400">ניתן להצביע שוב במידת הצורך. ההצבעה האחרונה שלך תיקלט במערכת.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= RESULTS VIEW ================= -->
+        <section id="view-results" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-6 border-b border-slate-100">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">תוצאות הסקר בזמן אמת</h2>
+                        <p class="text-slate-500 text-sm mt-1">שקלול התוצאות מבוסס על שיטת ניקוד (מקום 1 = 3 נק', מקום 2 = 2 נק', מקום 3 = 1 נק')</p>
+                    </div>
+                    <div class="bg-indigo-50 px-4 py-2 rounded-xl text-center border border-indigo-100 min-w-[120px]">
+                        <span class="block text-2xl font-bold text-indigo-600" id="total-votes-count">0</span>
+                        <span class="text-xs font-bold text-indigo-400">סה"כ מצביעים</span>
+                    </div>
+                </div>
+
+                <div id="results-container" class="space-y-6"></div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <i data-lucide="layers" class="w-5 h-5 text-indigo-500"></i> התפלגות המקומות המלאה
+                </h3>
+                <div id="detailed-breakdown" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <i data-lucide="users" class="w-5 h-5 text-indigo-500"></i> רשימת המשתתפים והצבעותיהם
+                </h3>
+                <div id="voters-list-container" class="space-y-3"></div>
+            </div>
+        </section>
+
+        <!-- ================= ADMIN VIEW ================= -->
+        <section id="view-admin" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-slate-800">הגדרות וניהול הסקר</h2>
+                    <p class="text-slate-500 text-sm mt-1">שינוי נושא הסקר והאפשרויות לדירוג. שינוי ההגדרות יאפס את הדירוגים הקיימים.</p>
+                </div>
+
+                <form id="admin-form" onsubmit="savePollSettings(event)" class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1.5">כותרת הסקר / השאלה</label>
+                        <input type="text" id="admin-title" required class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all text-sm font-bold">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1.5">תיאור קצר (אופציונלי)</label>
+                        <input type="text" id="admin-desc" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all text-sm font-bold">
+                    </div>
+
+                    <hr class="my-4 border-slate-100">
+
+                    <div id="admin-options-container" class="space-y-4">
+                        <label class="block text-sm font-bold text-slate-700">האפשרויות לדירוג</label>
+                    </div>
+
+                    <div class="pt-4 flex flex-wrap gap-3">
+                        <button type="submit" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-all shadow-sm flex items-center gap-2">
+                            <i data-lucide="save" class="w-4 h-4"></i> שמור הגדרות חדשות
+                        </button>
+                        <button type="button" onclick="resetVotesOnly()" class="px-4 py-2.5 border border-red-200 text-red-600 hover:bg-red-50 font-bold rounded-xl text-sm transition-all flex items-center gap-2">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i> איפוס קולות בלבד
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Application Logic -->
+    <script type="module">
+        // In-memory / LocalStorage fallback data store for standalone/preview environments
+        const MOCK_STORAGE_KEY_POLL = 'ranking_app_poll_data';
+        const MOCK_STORAGE_KEY_VOTES = 'ranking_app_votes_data';
+
+        function getMockData() {
+            const savedPoll = localStorage.getItem(MOCK_STORAGE_KEY_POLL);
+            const savedVotes = localStorage.getItem(MOCK_STORAGE_KEY_VOTES);
+
+            const poll = savedPoll ? JSON.parse(savedPoll) : {
+                title: "באיזו ועדה תרצה להיות?",
+                description: "גררו את האפשרויות לפי הסדר המועדף עליכם (מקום 1 בראש הרשימה).",
+                options: [
+                    { id: "opt1", text: "ועדת קיוסק" },
+                    { id: "opt2", text: "ועדת ריקוד" },
+                    { id: "opt3", text: "ועדת גלופות" }
+                ]
+            };
+
+            const votes = savedVotes ? JSON.parse(savedVotes) : [];
+            return { poll, votes };
+        }
+
+        function saveMockData(poll, votes) {
+            if (poll) localStorage.setItem(MOCK_STORAGE_KEY_POLL, JSON.stringify(poll));
+            if (votes !== undefined) localStorage.setItem(MOCK_STORAGE_KEY_VOTES, JSON.stringify(votes));
+        }
+
+        async function api(path, options = {}) {
+            const sep = path.includes('?') ? '&' : '?';
+            const queryParams = isAdmin ? `${sep}admin=true` : '';
+            const baseUrl = window.location.origin && window.location.origin !== 'null' ? window.location.origin : '';
+            const url = `${baseUrl}/api/${path}${queryParams}`;
+            
+            try {
+                const res = await fetch(url, {
+                    headers: { 'Content-Type': 'application/json' },
+                    ...options
+                });
+                if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+                return await res.json();
+            } catch (err) {
+                console.warn(`API call to /api/${path} failed, falling back to local client state:`, err.message);
+                return handleMockApi(path, options);
+            }
+        }
+
+        function handleMockApi(path, options) {
+            const { poll, votes } = getMockData();
+            const method = (options.method || 'GET').toUpperCase();
+
+            if (path.startsWith('state')) {
+                return { poll, votes };
+            } else if (path.startsWith('vote') && method === 'POST') {
+                const body = JSON.parse(options.body || '{}');
+                const existingVoteIdx = votes.findIndex(v => v.voterName.toLowerCase() === body.voterName.toLowerCase());
+                if (existingVoteIdx >= 0) {
+                    votes[existingVoteIdx] = body;
+                } else {
+                    votes.push(body);
+                }
+                saveMockData(poll, votes);
+                return { poll, votes };
+            } else if (path.startsWith('settings') && method === 'PUT') {
+                const newPoll = JSON.parse(options.body || '{}');
+                saveMockData(newPoll, []);
+                return { poll: newPoll, votes: [] };
+            } else if (path.startsWith('votes') && method === 'DELETE') {
+                saveMockData(poll, []);
+                return { poll, votes: [] };
+            }
+
+            return { poll, votes };
+        }
+
+        window.currentPoll = {
+            title: "באיזו ועדה תרצה להיות?",
+            description: "גררו את האפשרויות לפי הסדר המועדף עליכם",
+            options: [
+                { id: "opt1", text: "ועדת קיוסק" },
+                { id: "opt2", text: "ועדת ריקוד" },
+                { id: "opt3", text: "ועדת גלופות" }
+            ]
+        };
+
+        window.currentRanking = ["opt1", "opt2", "opt3"];
+        window.allVotes = [];
+        let sortableInstance = null;
+        let isAdmin = false;
+
+        // Check URL parameters for view modes (e.g. ?view=results, ?admin=true)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('admin') === 'true') {
+            isAdmin = true;
+            document.getElementById('tab-admin').classList.remove('hidden');
+            document.getElementById('tab-results').classList.remove('hidden');
+        } else if (urlParams.get('view') === 'results') {
+            document.getElementById('tab-results').classList.remove('hidden');
+        }
+
+        // Initialize application
+        async function init() {
+            await loadState();
+            setupSortable();
+            renderVotingUI();
+            
+            // Initial tab display selection
+            if (urlParams.get('view') === 'results') {
+                switchTab('results');
+            } else if (urlParams.get('admin') === 'true' && urlParams.get('view') === 'admin') {
+                switchTab('admin');
+            }
+
+            // Auto-refresh data every 10 seconds
+            setInterval(loadState, 10000);
+        }
+
+        async function loadState() {
+            try {
+                const data = await api('state');
+                if (data && data.poll) {
+                    window.currentPoll = data.poll;
+                    window.allVotes = data.votes || [];
+
+                    // Adjust initial ranking array if new items exist
+                    const pollIds = window.currentPoll.options.map(o => o.id);
+                    window.currentRanking = window.currentRanking.filter(id => pollIds.includes(id));
+                    pollIds.forEach(id => {
+                        if (!window.currentRanking.includes(id)) {
+                            window.currentRanking.push(id);
+                        }
+                    });
+
+                    updateHeaderInfo();
+                    renderVotingList();
+                    renderResultsUI();
+                    renderAdminUI();
+                }
+            } catch (e) {
+                console.error("Error loading state:", e);
+            }
+        }
+
+        function updateHeaderInfo() {
+            document.getElementById('poll-title-display').innerText = window.currentPoll.title || "סקר דירוג";
+            document.getElementById('poll-desc-display').innerText = window.currentPoll.description || "";
+        }
+
+        function setupSortable() {
+            const container = document.getElementById('ranking-list');
+            if (!container) return;
+
+            sortableInstance = new Sortable(container, {
+                animation: 200,
+                handle: '.drag-handle',
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                onEnd: function () {
+                    const items = container.querySelectorAll('[data-id]');
+                    window.currentRanking = Array.from(items).map(item => item.getAttribute('data-id'));
+                    renderRankingNumbers();
+                }
+            });
+        }
+
+        function renderVotingUI() {
+            updateHeaderInfo();
+            renderVotingList();
+        }
+
+        function renderVotingList() {
+            const container = document.getElementById('ranking-list');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            window.currentRanking.forEach((optId, idx) => {
+                const option = window.currentPoll.options.find(o => o.id === optId);
+                if (!option) return;
+
+                const item = document.createElement('div');
+                item.setAttribute('data-id', option.id);
+                item.className = 'flex items-center justify-between p-3.5 sm:p-4 bg-slate-50 border border-slate-200 rounded-xl hover:bg-white hover:border-indigo-300 transition-all duration-150 shadow-sm group';
+                
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="drag-handle cursor-grab active:cursor-grabbing p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition-colors">
+                            <i data-lucide="grip-vertical" class="w-5 h-5"></i>
+                        </div>
+                        <span class="rank-number flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs">
+                            ${idx + 1}
+                        </span>
+                        <span class="font-bold text-slate-800 text-base">${escapeHtml(option.text)}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button onclick="moveOption('${option.id}', -1)" ${idx === 0 ? 'disabled class="opacity-30 p-1.5 text-slate-400"' : 'class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"'} title="הזז למעלה">
+                            <i data-lucide="chevron-up" class="w-5 h-5"></i>
+                        </button>
+                        <button onclick="moveOption('${option.id}', 1)" ${idx === window.currentRanking.length - 1 ? 'disabled class="opacity-30 p-1.5 text-slate-400"' : 'class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"'} title="הזז למטה">
+                            <i data-lucide="chevron-down" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+
+            if (window.lucide) window.lucide.createIcons();
+        }
+
+        function renderRankingNumbers() {
+            const items = document.querySelectorAll('#ranking-list [data-id]');
+            items.forEach((item, index) => {
+                const badge = item.querySelector('.rank-number');
+                if (badge) badge.innerText = index + 1;
+            });
+        }
+
+        window.moveOption = function(id, direction) {
+            const idx = window.currentRanking.indexOf(id);
+            if (idx === -1) return;
+            const newIdx = idx + direction;
+
+            if (newIdx >= 0 && newIdx < window.currentRanking.length) {
+                const temp = window.currentRanking[idx];
+                window.currentRanking[idx] = window.currentRanking[newIdx];
+                window.currentRanking[newIdx] = temp;
+                renderVotingList();
+            }
+        };
+
+        window.submitVote = async function() {
+            const nameInput = document.getElementById('voter-name');
+            const nameErr = document.getElementById('name-error-msg');
+            const voterName = nameInput.value.trim();
+
+            if (!voterName) {
+                nameErr.classList.remove('hidden');
+                nameInput.classList.add('border-red-400', 'bg-red-50');
+                nameInput.focus();
+                return;
+            }
+
+            nameErr.classList.add('hidden');
+            nameInput.classList.remove('border-red-400', 'bg-red-50');
+
+            const submitBtn = document.getElementById('submit-vote-btn');
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'שולח...';
+
+            try {
+                const result = await api('vote', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        voterName,
+                        ranking: window.currentRanking
+                    })
+                });
+
+                if (result) {
+                    showToast(`הדירוג של ${voterName} נשמר בהצלחה!`);
+                    if (result.poll) window.currentPoll = result.poll;
+                    if (result.votes) window.allVotes = result.votes;
+                    renderResultsUI();
+                }
+            } catch (e) {
+                showToast('אירעה שגיאה בשליחת הדירוג', true);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<i data-lucide="send" class="w-5 h-5"></i> שליחת הדירוג שלי`;
+                if (window.lucide) window.lucide.createIcons();
+            }
+        };
+
+        function renderResultsUI() {
+            const votes = window.allVotes || [];
+            document.getElementById('total-votes-count').innerText = votes.length;
+
+            const options = window.currentPoll.options || [];
+            const optionScores = {};
+            const placeCounts = {};
+
+            options.forEach(opt => {
+                optionScores[opt.id] = 0;
+                placeCounts[opt.id] = { 1: 0, 2: 0, 3: 0 };
+            });
+
+            const numOptions = options.length;
+
+            votes.forEach(v => {
+                if (Array.isArray(v.ranking)) {
+                    v.ranking.forEach((optId, rankIdx) => {
+                        if (optionScores[optId] !== undefined) {
+                            const points = Math.max(1, numOptions - rankIdx);
+                            optionScores[optId] += points;
+
+                            const place = rankIdx + 1;
+                            if (placeCounts[optId] && placeCounts[optId][place] !== undefined) {
+                                placeCounts[optId][place]++;
+                            }
+                        }
+                    });
+                }
+            });
+
+            const maxPossiblePointsPerVote = numOptions;
+            const maxTotalPoints = Math.max(1, votes.length * maxPossiblePointsPerVote);
+
+            const sortedOptions = [...options].sort((a, b) => (optionScores[b.id] || 0) - (optionScores[a.id] || 0));
+
+            const resultsContainer = document.getElementById('results-container');
+            resultsContainer.innerHTML = '';
+
+            sortedOptions.forEach((opt, index) => {
+                const score = optionScores[opt.id] || 0;
+                const percentage = Math.round((score / maxTotalPoints) * 100);
+
+                const card = document.createElement('div');
+                card.className = 'bg-slate-50 p-4 rounded-xl border border-slate-200 relative overflow-hidden';
+                
+                let badgeBg = 'bg-slate-200 text-slate-700';
+                if (index === 0) badgeBg = 'bg-amber-400 text-amber-900 font-bold';
+                if (index === 1) badgeBg = 'bg-slate-300 text-slate-800 font-bold';
+                if (index === 2) badgeBg = 'bg-amber-700/20 text-amber-800 font-bold';
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-6 h-6 rounded-full ${badgeBg} flex items-center justify-center text-xs">
+                                ${index + 1}
+                            </span>
+                            <span class="font-bold text-slate-800 text-base">${escapeHtml(opt.text)}</span>
+                        </div>
+                        <span class="font-bold text-indigo-600 text-sm">${score} נקודות</span>
+                    </div>
+                    <div class="w-full bg-slate-200 h-3 rounded-full overflow-hidden">
+                        <div class="bg-indigo-600 h-full rounded-full transition-all duration-500" style="width: ${percentage}%"></div>
+                    </div>
+                `;
+                resultsContainer.appendChild(card);
+            });
+
+            // Detailed Breakdown
+            const breakdownContainer = document.getElementById('detailed-breakdown');
+            breakdownContainer.innerHTML = '';
+
+            options.forEach(opt => {
+                const p = placeCounts[opt.id] || { 1: 0, 2: 0, 3: 0 };
+                const el = document.createElement('div');
+                el.className = 'p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2';
+                el.innerHTML = `
+                    <div class="font-bold text-slate-800 text-sm border-b border-slate-200 pb-1.5 mb-2">${escapeHtml(opt.text)}</div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-600 font-bold">מקום ראשון:</span>
+                        <span class="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">${p[1]} הצבעות</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-600 font-bold">מקום שני:</span>
+                        <span class="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">${p[2]} הצבעות</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-600 font-bold">מקום שלישי:</span>
+                        <span class="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">${p[3]} הצבעות</span>
+                    </div>
+                `;
+                breakdownContainer.appendChild(el);
+            });
+
+            // Voters List
+            const votersContainer = document.getElementById('voters-list-container');
+            votersContainer.innerHTML = '';
+
+            if (votes.length === 0) {
+                votersContainer.innerHTML = `<p class="text-slate-400 text-sm italic">טרם נרשמו הצבעות.</p>`;
+            } else {
+                votes.forEach(v => {
+                    const optionNames = (v.ranking || []).map(id => {
+                        const opt = options.find(o => o.id === id);
+                        return opt ? opt.text : id;
+                    }).join(' ← ');
+
+                    const row = document.createElement('div');
+                    row.className = 'p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between sm:items-center gap-1 sm:gap-4 text-xs';
+                    row.innerHTML = `
+                        <span class="font-bold text-slate-800 text-sm sm:w-1/4">${escapeHtml(v.voterName)}</span>
+                        <span class="text-slate-600 font-bold sm:w-3/4 bg-white px-3 py-1.5 rounded-lg border border-slate-100">${escapeHtml(optionNames)}</span>
+                    `;
+                    votersContainer.appendChild(row);
+                });
+            }
+        }
+
+        function renderAdminUI() {
+            document.getElementById('admin-title').value = window.currentPoll.title || '';
+            document.getElementById('admin-desc').value = window.currentPoll.description || '';
+
+            const container = document.getElementById('admin-options-container');
+            container.innerHTML = `<label class="block text-sm font-bold text-slate-700">האפשרויות לדירוג (מינימום 2)</label>`;
+
+            (window.currentPoll.options || []).forEach((opt, idx) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center gap-2';
+                div.innerHTML = `
+                    <input type="text" data-opt-id="${opt.id}" value="${escapeHtml(opt.text)}" required class="admin-opt-input flex-grow px-4 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-500 text-sm font-bold">
+                    ${idx >= 2 ? `<button type="button" onclick="removeAdminOption(this)" class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                `;
+                container.appendChild(div);
+            });
+
+            const addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = 'mt-2 text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1';
+            addBtn.onclick = addAdminOption;
+            addBtn.innerHTML = `<i data-lucide="plus-circle" class="w-4 h-4"></i> הוסף אפשרות נוספת`;
+            container.appendChild(addBtn);
+
+            if (window.lucide) window.lucide.createIcons();
+        }
+
+        window.addAdminOption = function() {
+            const container = document.getElementById('admin-options-container');
+            const count = container.querySelectorAll('.admin-opt-input').length + 1;
+            const div = document.createElement('div');
+            div.className = 'flex items-center gap-2 mt-2';
+            div.innerHTML = `
+                <input type="text" data-opt-id="opt_${Date.now()}" value="אפשרות ${count}" required class="admin-opt-input flex-grow px-4 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-500 text-sm font-bold">
+                <button type="button" onclick="removeAdminOption(this)" class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            `;
+            container.insertBefore(div, container.lastChild);
+            if (window.lucide) window.lucide.createIcons();
+        };
+
+        window.removeAdminOption = function(btn) {
+            const div = btn.parentElement;
+            div.remove();
+        };
+
+        window.savePollSettings = async function(e) {
+            e.preventDefault();
+            const title = document.getElementById('admin-title').value.trim();
+            const description = document.getElementById('admin-desc').value.trim();
+
+            const inputs = document.querySelectorAll('.admin-opt-input');
+            const options = Array.from(inputs).map(inp => ({
+                id: inp.getAttribute('data-opt-id') || `opt_${Math.random()}`,
+                text: inp.value.trim()
+            }));
+
+            try {
+                const res = await api('settings', {
+                    method: 'PUT',
+                    body: JSON.stringify({ title, description, options })
+                });
+
+                if (res) {
+                    showToast('הגדרות הסקר עודכנו וההצבעות אופסו');
+                    if (res.poll) window.currentPoll = res.poll;
+                    window.allVotes = [];
+                    window.currentRanking = (res.poll.options || []).map(o => o.id);
+                    renderVotingUI();
+                    renderResultsUI();
+                    renderAdminUI();
+                }
+            } catch (err) {
+                showToast('שגיאה בשמירת ההגדרות', true);
+            }
+        };
+
+        window.resetVotesOnly = async function() {
+            if (!confirm('האם אתה בטוח שברצונך לאפס את כל הקולות?')) return;
+
+            try {
+                await api('votes', { method: 'DELETE' });
+                showToast('כל ההצבעות אופסו בהצלחה');
+                window.allVotes = [];
+                renderResultsUI();
+            } catch (e) {
+                showToast('שגיאה באיפוס הקולות', true);
+            }
+        };
+
+        window.switchTab = function(tabName) {
+            document.getElementById('view-vote').classList.add('hidden');
+            document.getElementById('view-results').classList.add('hidden');
+            document.getElementById('view-admin').classList.add('hidden');
+
+            const btnVote = document.getElementById('tab-vote');
+            const btnResults = document.getElementById('tab-results');
+            const btnAdmin = document.getElementById('tab-admin');
+
+            [btnVote, btnResults, btnAdmin].forEach(btn => {
+                if (btn) {
+                    btn.className = 'px-4 py-1.5 rounded-lg transition-all duration-200 text-slate-600 hover:text-slate-900 font-bold';
+                }
+            });
+
+            if (tabName === 'vote') {
+                document.getElementById('view-vote').classList.remove('hidden');
+                btnVote.className = 'px-4 py-1.5 rounded-lg transition-all duration-200 bg-white text-indigo-600 shadow-sm font-bold';
+            } else if (tabName === 'results') {
+                document.getElementById('view-results').classList.remove('hidden');
+                btnResults.className = 'px-4 py-1.5 rounded-lg transition-all duration-200 bg-white text-indigo-600 shadow-sm font-bold';
+            } else if (tabName === 'admin') {
+                document.getElementById('view-admin').classList.remove('hidden');
+                btnAdmin.className = 'px-4 py-1.5 rounded-lg transition-all duration-200 bg-white text-indigo-600 shadow-sm font-bold';
+            }
+        };
+
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-message');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastMsg.innerText = msg;
+            toastIcon.setAttribute('data-lucide', isError ? 'alert-triangle' : 'check-circle-2');
+            toastIcon.className = `w-5 h-5 ${isError ? 'text-red-400' : 'text-green-400'}`;
+
+            if (window.lucide) window.lucide.createIcons();
+
+            toast.classList.remove('hidden', 'translate-y-10', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-10', 'opacity-0');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 3000);
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        // Initialize on DOM load
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
